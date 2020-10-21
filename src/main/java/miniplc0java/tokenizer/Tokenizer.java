@@ -2,6 +2,7 @@ package miniplc0java.tokenizer;
 
 import miniplc0java.error.TokenizeError;
 import miniplc0java.error.ErrorCode;
+import miniplc0java.util.Pos;
 
 import java.security.Key;
 
@@ -63,6 +64,7 @@ public class Tokenizer {
         // 请填空：
         // 直到查看下一个字符不是数字或字母为止:
         StringBuilder str_val = new StringBuilder();
+        Pos prePos = it.currentPos();
 
         do {
             // -- 前进一个字符，并存储这个字符
@@ -75,22 +77,22 @@ public class Tokenizer {
         switch (str_val.toString()) {
             // -- 如果是关键字，则返回关键字类型的 token
             case "BEGIN":
-                return new Token(TokenType.Begin, "BEGIN", it.previousPos(), it.currentPos());
+                return new Token(TokenType.Begin, "BEGIN", prePos, it.currentPos());
 
             case "END":
-                return new Token(TokenType.End, "END", it.previousPos(), it.currentPos());
+                return new Token(TokenType.End, "END", prePos, it.currentPos());
 
             case "VAR":
-                return new Token(TokenType.Var, "VAR", it.previousPos(), it.currentPos());
+                return new Token(TokenType.Var, "VAR", prePos, it.currentPos());
 
             case "CONST":
-                return new Token(TokenType.Const, "CONST", it.previousPos(), it.currentPos());
+                return new Token(TokenType.Const, "CONST", prePos, it.currentPos());
 
             case "PRINT":
-                return new Token(TokenType.Print, "PRINT", it.previousPos(), it.currentPos());
+                return new Token(TokenType.Print, "PRINT", prePos, it.currentPos());
             // -- 否则，返回标识符
             default:
-                return new Token(TokenType.Ident, str_val.toString(), it.previousPos(), it.currentPos());
+                return new Token(TokenType.Ident, str_val.toString(), prePos, it.currentPos());
 
         }
     }
