@@ -292,7 +292,7 @@ public final class Analyser {
             expect(TokenType.Semicolon);
 
             // 添加至符号表
-            addSymbol((String) nameToken.getValue(), false, false, nameToken.getStartPos());
+            addSymbol((String) nameToken.getValue(), isInitialized, false, nameToken.getStartPos());
             // 如果没有初始化的话在栈内推入一个初始值
             if (!isInitialized){
                 instructions.add(new Instruction(Operation.LIT, 0));
@@ -407,10 +407,10 @@ public final class Analyser {
             // 因子
             analyseFactor();
             // 生成代码
-            if (op.getTokenType()==TokenType.Plus){
+            if (op.getTokenType()==TokenType.Mult){
                 instructions.add(new Instruction(Operation.MUL));
             }
-            else{
+            else if(op.getTokenType()==TokenType.Div){
                 instructions.add(new Instruction(Operation.DIV));
             }
         }
