@@ -384,17 +384,12 @@ public final class Analyser {
             // 项
             analyseItem();
             // 生成代码
-            if (check(TokenType.Plus)){
+            if (op.getTokenType()==TokenType.Plus){
                 instructions.add(new Instruction(Operation.ADD));
             }
-            else if (check(TokenType.Minus)){
+            else if (op.getTokenType()==TokenType.Minus){
                 instructions.add(new Instruction(Operation.SUB));
             }
-            else{
-                // 助教要摸我也摸
-                throw new ExpectedTokenError(List.of(TokenType.Plus, TokenType.Minus), next());
-            }
-
         }
     }
 
