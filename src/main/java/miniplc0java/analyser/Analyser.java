@@ -228,7 +228,7 @@ public final class Analyser {
             var nameToken = expect(TokenType.Ident);
 
             // 添加符号至符号表
-            addSymbol((String) nameToken.getValue(), false, true, nameToken.getStartPos());
+            addSymbol((String) nameToken.getValue(), true, true, nameToken.getStartPos());
 
             // 等于号
             expect(TokenType.Equal);
