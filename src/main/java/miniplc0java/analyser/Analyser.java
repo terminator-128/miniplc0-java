@@ -380,7 +380,10 @@ public final class Analyser {
         analyseItem();
         while (check(TokenType.Plus)||check(TokenType.Minus)){
             // 加法型运算符
-            next();
+            var op = next();
+            // 项
+            analyseItem();
+            // 生成代码
             if (check(TokenType.Plus)){
                 instructions.add(new Instruction(Operation.ADD));
             }
@@ -391,8 +394,7 @@ public final class Analyser {
                 // 助教要摸我也摸
                 throw new ExpectedTokenError(List.of(TokenType.Plus, TokenType.Minus), next());
             }
-            // 项
-            analyseItem();
+
         }
     }
 
