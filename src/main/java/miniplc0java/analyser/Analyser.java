@@ -40,9 +40,9 @@ public final class Analyser {
 
     /**
      * 查看下一个 Token
-     * 
-     * @return
-     * @throws TokenizeError
+     *
+     * @return 如peekedToken为空，则peek下一个token；如peekToken不为空，则返回
+     * @throws TokenizeError 返回词法分析错误
      */
     private Token peek() throws TokenizeError {
         if (peekedToken == null) {
@@ -54,8 +54,8 @@ public final class Analyser {
     /**
      * 获取下一个 Token
      * 
-     * @return
-     * @throws TokenizeError
+     * @return 若peekToken不为空，返回peekToken并置空（相当于前进一个Token）；如为空，则返回tokenizer.nextToken()
+     * @throws TokenizeError 词法分析错误
      */
     private Token next() throws TokenizeError {
         if (peekedToken != null) {
@@ -70,9 +70,9 @@ public final class Analyser {
     /**
      * 如果下一个 token 的类型是 tt，则返回 true
      * 
-     * @param tt
-     * @return
-     * @throws TokenizeError
+     * @param tt token类型
+     * @return 若下一个token类型为tt，则返回true；否则返回false
+     * @throws TokenizeError 词法分析错误
      */
     private boolean check(TokenType tt) throws TokenizeError {
         var token = peek();
@@ -84,7 +84,7 @@ public final class Analyser {
      * 
      * @param tt 类型
      * @return 如果匹配则返回这个 token，否则返回 null
-     * @throws TokenizeError
+     * @throws TokenizeError 词法分析错误
      */
     private Token nextIf(TokenType tt) throws TokenizeError {
         var token = peek();
@@ -113,8 +113,7 @@ public final class Analyser {
 
     /**
      * 获取下一个变量的栈偏移
-     * 
-     * @return
+     * @return 下一个变量的栈偏移
      */
     private int getNextVariableOffset() {
         return this.nextOffset++;
@@ -144,7 +143,7 @@ public final class Analyser {
      * @param curPos 当前位置（报错用）
      * @throws AnalyzeError 如果未定义则抛异常
      */
-    private void declareSymbol(String name, Pos curPos) throws AnalyzeError {
+    private void initializeSymbol(String name, Pos curPos) throws AnalyzeError {
         var entry = this.symbolTable.get(name);
         if (entry == null) {
             throw new AnalyzeError(ErrorCode.NotDeclared, curPos);
@@ -159,7 +158,7 @@ public final class Analyser {
      * @param name   符号名
      * @param curPos 当前位置（报错用）
      * @return 栈偏移
-     * @throws AnalyzeError
+     * @throws AnalyzeError 语法分析错误
      */
     private int getOffset(String name, Pos curPos) throws AnalyzeError {
         var entry = this.symbolTable.get(name);
@@ -176,7 +175,7 @@ public final class Analyser {
      * @param name   符号名
      * @param curPos 当前位置（报错用）
      * @return 是否为常量
-     * @throws AnalyzeError
+     * @throws AnalyzeError 语法分析错误
      */
     private boolean isConstant(String name, Pos curPos) throws AnalyzeError {
         var entry = this.symbolTable.get(name);
@@ -187,7 +186,8 @@ public final class Analyser {
         }
     }
 
-    /**
+    /** checked
+     * @throws CompileError
      * <程序> ::= 'begin'<主过程>'end'
      */
     private void analyseProgram() throws CompileError {
@@ -202,52 +202,166 @@ public final class Analyser {
         expect(TokenType.EOF);
     }
 
+    /** checked
+     * @throws CompileError
+     * <主过程> ::= <常量声明><变量声明><语句序列>
+     */
     private void analyseMain() throws CompileError {
-        throw new Error("Not implemented");
+        // 常量声明
+        analyseConstantDeclaration();
+        // 变量声明
+        analyseVariableDeclaration();
+        // 语句序列
+        analyseStatementSequence();
     }
 
+    /**
+     * @throws CompileError
+     * <常量声明> ::= {<常量声明语句>}
+     * <常量声明语句> ::= 'const'<标识符>'='<常表达式>';'
+     */
     private void analyseConstantDeclaration() throws CompileError {
-        // 示例函数，示例如何解析常量声明
-        // 如果下一个 token 是 const 就继续
+        // 常量声明
         while (nextIf(TokenType.Const) != null) {
-            // 变量名
+            // 常量声明语句：
+            // 标识符
             var nameToken = expect(TokenType.Ident);
+
+            // 添加符号至符号表
+            addSymbol((String) nameToken.getValue(), false, true, nameToken.getStartPos());
 
             // 等于号
             expect(TokenType.Equal);
-
             // 常表达式
-            analyseConstantExpression();
-
+            var value = analyseConstantExpression();
             // 分号
             expect(TokenType.Semicolon);
+            // 这里直接把常量值放入栈里，位置和符号表记录的一样
+            // 更高级的程序还可以把常量的值记录下来，遇到相应的变量直接替换成这个常数值
+            // 我们这里就先不这么干了
+            instructions.add(new Instruction(Operation.LIT, value));
+
         }
     }
 
+    /**
+     * @throws CompileError
+     * <常表达式> ::= [<符号>]<无符号整数>
+     */
+    private int analyseConstantExpression() throws CompileError {
+        // [<符号>]
+        boolean negate = false;
+        if (nextIf(TokenType.Minus) != null) {
+            negate = true;
+        }
+        else{
+            nextIf(TokenType.Plus);
+        }
+
+        // 无符号整数
+        var token = expect(TokenType.Uint);
+        int value = (int) token.getValue();
+
+        if (negate) {
+            value = -value;
+        }
+        return value;
+    }
+
+
+    /** checked
+     * @throws CompileError
+     * <变量声明> ::= {<变量声明语句>}
+     */
     private void analyseVariableDeclaration() throws CompileError {
-        throw new Error("Not implemented");
+        // 变量声明
+        boolean isInitialized;
+        while (nextIf(TokenType.Var) != null) {
+            // 变量声明语句：
+            // 变量名
+            var nameToken = expect(TokenType.Ident);
+            // 变量初始化默认设置否
+            isInitialized = false;
+            // ['='<表达式>]';'
+            if (nextIf(TokenType.Equal) != null) {
+                // 表达式
+                analyseExpression();
+                isInitialized = true;
+            }
+            // 分号
+            expect(TokenType.Semicolon);
+
+            // 添加至符号表
+            addSymbol((String) nameToken.getValue(), isInitialized, false, nameToken.getStartPos());
+            // 如果没有初始化的话在栈内推入一个初始值
+            if (!isInitialized){
+                instructions.add(new Instruction(Operation.LIT, 0));
+            }
+        }
     }
 
+    /** checked
+     * @throws CompileError
+     * <语句序列> ::= {<语句>}
+     * <语句> ::= <赋值语句>|<输出语句>|<空语句>
+     */
     private void analyseStatementSequence() throws CompileError {
-        throw new Error("Not implemented");
+
+        while (true) {
+            if (check(TokenType.Ident)){
+                analyseAssignmentStatement();
+            }
+            else if (check(TokenType.Print)){
+                analyseOutputStatement();
+            }
+            else if (check(TokenType.Semicolon)){
+                expect(TokenType.Semicolon);
+            }
+            else{
+                break;
+            }
+        }
     }
 
-    private void analyseStatement() throws CompileError {
-        throw new Error("Not implemented");
-    }
 
-    private void analyseConstantExpression() throws CompileError {
-        throw new Error("Not implemented");
-    }
-
-    private void analyseExpression() throws CompileError {
-        throw new Error("Not implemented");
-    }
-
+    /**
+     * @throws CompileError
+     * <赋值语句> ::= <标识符>'='<表达式>';'
+     */
     private void analyseAssignmentStatement() throws CompileError {
-        throw new Error("Not implemented");
+        // 标识符
+        Token nameToken = expect(TokenType.Ident);
+        // 等号
+        expect(TokenType.Equal);
+        // 表达式
+        analyseExpression();
+        // 分号
+        expect(TokenType.Semicolon);
+
+        // 企图从符号表中拿值
+        String name = (String) nameToken.getValue();
+        var symbol = symbolTable.get(name);
+        // 返回符号判断
+        if (symbol == null){
+            // 没有这个标识符
+            throw new AnalyzeError(ErrorCode.AssignToConstant, nameToken.getStartPos());
+        }
+        else if (symbol.isConstant()){
+            // 标识符是常量
+            throw new AnalyzeError(ErrorCode.AssignToConstant, nameToken.getStartPos());
+        }
+
+        // 设置符号已经初始化
+        initializeSymbol(name, null);
+        // 把结果保存
+        var offset = getOffset(name, null);
+        instructions.add(new Instruction(Operation.STO, offset));
     }
 
+    /**
+     * @throws CompileError
+     * <输出语句> ::= 'print' '(' <表达式> ')' ';'
+     */
     private void analyseOutputStatement() throws CompileError {
         expect(TokenType.Print);
         expect(TokenType.LParen);
@@ -257,10 +371,59 @@ public final class Analyser {
         instructions.add(new Instruction(Operation.WRT));
     }
 
-    private void analyseItem() throws CompileError {
-        throw new Error("Not implemented");
+    /**
+     * @throws CompileError
+     * <表达式> ::= <项>{<加法型运算符><项>}
+     */
+    private void analyseExpression() throws CompileError {
+        // 项
+        analyseItem();
+        while (check(TokenType.Plus)||check(TokenType.Minus)){
+            // 加法型运算符
+            next();
+            if (check(TokenType.Plus)){
+                instructions.add(new Instruction(Operation.ADD));
+            }
+            else if (check(TokenType.Minus)){
+                instructions.add(new Instruction(Operation.SUB));
+            }
+            else{
+                // 助教要摸我也摸
+                throw new ExpectedTokenError(List.of(TokenType.Plus, TokenType.Minus), next());
+            }
+            // 项
+            analyseItem();
+        }
     }
 
+    /**
+     * @throws CompileError
+     * <项> ::= <因子>{<乘法型运算符><因子>}
+     */
+    private void analyseItem() throws CompileError {
+        // 因子
+        analyseFactor();
+        // {<乘法型运算符><因子>}
+        while (check(TokenType.Mult)||check(TokenType.Div)){
+            // 读取操作符
+            Token op = next();
+            // 因子
+            analyseFactor();
+            // 生成代码
+            if (op.getTokenType()==TokenType.Plus){
+                instructions.add(new Instruction(Operation.MUL));
+            }
+            else{
+                instructions.add(new Instruction(Operation.DIV));
+            }
+        }
+
+    }
+
+    /**
+     * @throws CompileError
+     * <因子> ::= [<符号>]( <标识符> | <无符号整数> | '('<表达式>')' )
+     */
     private void analyseFactor() throws CompileError {
         boolean negate;
         if (nextIf(TokenType.Minus) != null) {
@@ -274,10 +437,28 @@ public final class Analyser {
 
         if (check(TokenType.Ident)) {
             // 调用相应的处理函数
+            // 标识符token
+            var token = expect(TokenType.Ident);
+            // 加载标识符的值
+            String name = (String) token.getValue();
+            var symbol = symbolTable.get(name);
+            if (symbol==null){
+                // 之前没有声明标识符
+                throw new AnalyzeError(ErrorCode.NotDeclared, token.getStartPos());
+            }else if (!symbol.isInitialized){
+                // 标识符未初始化
+                throw new AnalyzeError(ErrorCode.NotInitialized, token.getStartPos());
+            }
+            // 加载栈内存储的标识符的值
+            var offset = getOffset(name, null);
+            instructions.add(new Instruction(Operation.LOD, offset));
         } else if (check(TokenType.Uint)) {
-            // 调用相应的处理函数
-        } else if (check(TokenType.LParen)) {
-            // 调用相应的处理函数
+            // 如果下一个token是整数
+            instructions.add(new Instruction(Operation.LIT, (int)next().getValue()));
+        } else if (nextIf(TokenType.LParen)!=null) {
+            // 如果下一个语法成分为表达式
+            analyseExpression();
+            expect(TokenType.RParen);
         } else {
             // 都不是，摸了
             throw new ExpectedTokenError(List.of(TokenType.Ident, TokenType.Uint, TokenType.LParen), next());
