@@ -268,7 +268,6 @@ public final class Analyser {
         return value;
     }
 
-
     /** checked
      * @throws CompileError
      * <变量声明> ::= {<变量声明语句>}
